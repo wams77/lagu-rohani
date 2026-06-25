@@ -21,11 +21,28 @@ except Exception as e:
     print(f"Error saat inisialisasi Firebase: {e}")
     sys.exit(1)
 
-def update_songs_to_firebase(list_lagu):
+def update_songs_to_firebase(new_songs):
     try:
         ref = db.reference('songs')
-        ref.set(list_lagu)
-        print(f"Berhasil memperbarui {len(list_lagu)} lagu ke Firebase!")
+        # Mengambil data lama terlebih dahulu agar tidak terhapus
+        existing_songs = ref.get() or []
+        
+        # Membuat set URL untuk menghindari duplikasi lagu
+        existing_urls = {song.get('url') for song in existing_songs if isinstance(song, dict)}
+        
+        updated_list = list(existing_songs)
+        added_count = 0
+        
+        for song in new_songs:
+            if song.get('url') not in existing_urls:
+                # Memberikan ID baru berdasarkan panjang list
+                song["id"] = len(updated_list) + 1
+                updated_list.append(song)
+                existing_urls.add(song.get('url'))
+                added_count += 1
+        
+        ref.set(updated_list)
+        print(f"Selesai! Menambahkan {added_count} lagu baru. Total lagu saat ini: {len(updated_list)}")
     except Exception as e:
         print(f"Gagal mengunggah ke Firebase: {e}")
         sys.exit(1)
@@ -64,7 +81,8 @@ def fetch_files_from_identifier(identifier):
                 songs.append({
                     "title": title,
                     "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
-                    "size": file.get("size", "0")
+                    "size": file.get("size", "0"),
+                    "category": "Worship"
                 })
         return songs
     except Exception as e:
@@ -73,6 +91,7 @@ def fetch_files_from_identifier(identifier):
 
 if __name__ == "__main__":
     print("Memulai proses pencarian...")
+    # Menggunakan query yang lebih luas untuk mendapatkan lebih banyak hasil
     search_query = 'title:"lagu rohani" OR subject:"lagu rohani"'
     album_ids = get_identifiers_from_search(search_query, max_items=5)
     
@@ -80,17 +99,13 @@ if __name__ == "__main__":
         print("Tidak ada album ditemukan.")
         sys.exit(0)
     
-    all_songs = []
+    all_new_songs = []
     for album_id in album_ids:
-        print(f"Mengambil lagu dari: {album_id}")
+        print(f"Memproses album: {album_id}")
         songs = fetch_files_from_identifier(album_id)
-        all_songs.extend(songs)
-    
-    for idx, song in enumerate(all_songs):
-        song["id"] = idx + 1
-        song["category"] = "Worship"
+        all_new_songs.extend(songs)
         
-    if all_songs:
-        update_songs_to_firebase(all_songs)
+    if all_new_songs:
+        update_songs_to_firebase(all_new_songs)
     else:
-        print("Tidak ada lagu ditemukan untuk diunggah.")
+        print("Tidak ada lagu baru ditemukan.")
