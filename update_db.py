@@ -47,7 +47,7 @@ def update_songs_to_firebase(new_songs):
         print(f"Gagal mengunggah ke Firebase: {e}")
         sys.exit(1)
 
-def get_identifiers_from_search(query, max_items=5):
+def get_identifiers_from_search(query, max_items=20):
     url = "https://archive.org/advancedsearch.php"
     params = {
         "q": query,
@@ -76,14 +76,21 @@ def fetch_files_from_identifier(identifier):
         songs = []
         
         for file in files:
+            # Memastikan file adalah mp3
             if file.get("name", "").lower().endswith(".mp3"):
-                title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
-                songs.append({
-                    "title": title,
-                    "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
-                    "size": file.get("size", "0"),
-                    "category": "Worship"
-                })
+                duration = float(file.get("length", 0))
+                
+                # Aturan: Ambil lagu dengan durasi maksimal 300 detik (5 menit)
+                # Durasi 0 dianggap tidak valid atau data durasi tidak terbaca
+                if 0 < duration <= 300:
+                    title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
+                    songs.append({
+                        "title": title,
+                        "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
+                        "size": file.get("size", "0"),
+                        "duration": duration,
+                        "category": "Worship"
+                    })
         return songs
     except Exception as e:
         print(f"Gagal mengambil file dari {identifier}: {e}")
@@ -91,9 +98,10 @@ def fetch_files_from_identifier(identifier):
 
 if __name__ == "__main__":
     print("Memulai proses pencarian...")
-    # Menggunakan query yang lebih luas untuk mendapatkan lebih banyak hasil
+    # Menggunakan query yang luas
     search_query = 'title:"lagu rohani" OR subject:"lagu rohani"'
-    album_ids = get_identifiers_from_search(search_query, max_items=5)
+    # max_items tetap 20 untuk membatasi jumlah album yang dibuka agar tidak timeout
+    album_ids = get_identifiers_from_search(search_query, max_items=20)
     
     if not album_ids:
         print("Tidak ada album ditemukan.")
@@ -108,4 +116,4 @@ if __name__ == "__main__":
     if all_new_songs:
         update_songs_to_firebase(all_new_songs)
     else:
-        print("Tidak ada lagu baru ditemukan.")
+        print("Tidak ada lagu baru yang memenuhi kriteria ditemukan.")
