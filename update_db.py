@@ -3,6 +3,7 @@ import json
 import os
 import requests
 import sys
+import re
 from firebase_admin import credentials, db
 
 # Memastikan environment variable tersedia
@@ -33,18 +34,66 @@ def tentukan_kategori(title):
     else:
         return "Penyembahan"
 
-def ekstrak_artis(metadata, title):
-    """Mencoba mengekstrak nama artis dari metadata atau judul lagu."""
-    # Prioritaskan metadata creator atau artist dari Archive.org
-    artis = metadata.get("creator") or metadata.get("artist")
-    if artis:
-        return artis
+def is_valid_artist_name(name):
+    """Memeriksa apakah string adalah nama artis yang valid (bukan media, studio, atau angka)."""
+    if not name or len(name) < 3:
+        return False
     
-    # Jika tidak ada, coba ambil dari judul (asumsi format "Nama Artis - Judul Lagu")
-    if " - " in title:
-        return title.split(" - ")[0].strip()
+    # Daftar kata kunci yang sering menandakan itu BUKAN penyanyi/artis
+    invalid_keywords = [
+        'media', 'studio', 'channel', 'record', 'production', 'music', 
+        'official', 'album', 'vol', 'volume', 'kumpulan', 'kompilasi', 
+        'lagu', 'rohani', 'terbaik', 'terpopuler', 'audio', 'mp3', 'kbps',
+        'y2mate', 'yt1s'
+    ]
     
-    return "Worship Leader" # Nama default jika tidak ditemukan
+    name_lower = name.lower()
+    
+    # Jika hanya angka (seperti "1")
+    if name.isdigit():
+        return False
+        
+    # Jika mengandung kata kunci yang tidak valid
+    if any(keyword in name_lower for keyword in invalid_keywords):
+        return False
+        
+    # Pastikan mengandung setidaknya satu huruf alfabet
+    if not re.search('[a-zA-Z]', name):
+        return False
+        
+    return True
+
+def bersihkan_judul_dan_artis(raw_title, raw_artist):
+    """Mengekstrak artis dari judul (Artis - Judul) dan memvalidasi nama artis."""
+    
+    final_title = raw_title.replace(".mp3", "").replace("_", " ").strip()
+    final_artist = "Worship Leader"
+    
+    # 1. Coba ambil artis dari metadata bawaan (jika valid)
+    if is_valid_artist_name(raw_artist):
+        final_artist = raw_artist.title() # Format huruf besar di awal kata
+    
+    # 2. Seringkali judul berisi "Nama Artis - Judul Lagu"
+    if " - " in final_title:
+        parts = final_title.split(" - ", 1)
+        potential_artist = parts[0].strip()
+        potential_title = parts[1].strip()
+        
+        # Jika bagian depan terlihat seperti nama artis yang valid, gunakan itu
+        if is_valid_artist_name(potential_artist):
+            final_artist = potential_artist.title()
+            final_title = potential_title # Hapus nama artis dari judul
+    
+    # 3. Filter terakhir jika nama artis masih aneh
+    if not is_valid_artist_name(final_artist):
+        final_artist = "Worship Leader"
+        
+    # Bersihkan sisa-sisa angka bitrate atau domain web di judul
+    final_title = re.sub(r'(?i)\b\d+kbps\b|\.com|\.net', '', final_title).strip()
+    # Hapus karakter aneh di awal atau akhir
+    final_title = re.sub(r'^[-_.\s]+|[-_.\s]+$', '', final_title)
+        
+    return final_title, final_artist
 
 def update_songs_to_firebase(new_songs):
     try:
@@ -100,21 +149,24 @@ def fetch_files_from_identifier(identifier):
         for file in files:
             if file.get("name", "").lower().endswith(".mp3"):
                 duration = float(file.get("length", 0))
-                if 0 < duration <= 300:
-                    title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
-                    category = tentukan_kategori(title)
-                    artis = ekstrak_artis(metadata, title)
+                if 0 < duration <= 600: # Diperluas ke 10 menit maksimal
                     
-                    seo_description = f"Download lagu rohani kristen berjudul {title} oleh {artis} dalam kategori {category}. Dapatkan kualitas suara terbaik untuk saat teduh dan pujian."
+                    raw_title = file.get("title") or file.get("name")
+                    raw_artist = metadata.get("creator") or metadata.get("artist") or ""
+                    
+                    clean_title, clean_artist = bersihkan_judul_dan_artis(raw_title, raw_artist)
+                    category = tentukan_kategori(clean_title)
+                    
+                    seo_description = f"Download lagu rohani kristen berjudul {clean_title} oleh {clean_artist} dalam kategori {category}. Dapatkan kualitas suara terbaik untuk saat teduh dan pujian."
                     
                     songs.append({
-                        "title": title,
-                        "artist": artis,
+                        "title": clean_title,
+                        "artist": clean_artist,
                         "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
                         "duration": duration,
                         "category": category,
                         "description": seo_description,
-                        "keywords": f"download lagu rohani kristen, lagu {artis}, lagu pujian, lagu penyembahan"
+                        "keywords": f"download lagu rohani kristen, lagu {clean_artist}, lagu pujian, lagu penyembahan"
                     })
         return songs
     except Exception as e:
