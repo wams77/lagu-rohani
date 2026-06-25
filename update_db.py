@@ -21,6 +21,18 @@ except Exception as e:
     print(f"Error saat inisialisasi Firebase: {e}")
     sys.exit(1)
 
+def tentukan_kategori(title):
+    """Logika sederhana untuk menentukan kategori berdasarkan judul lagu."""
+    title_lower = title.lower()
+    if any(word in title_lower for word in ['teduh', 'tenang', 'doa', 'renungan', 'instrumen']):
+        return "Saat Teduh"
+    elif any(word in title_lower for word in ['praise', 'semangat', 'ceria', 'agung', 'sorak']):
+        return "Praise"
+    elif any(word in title_lower for word in ['worship', 'faith', 'yesus', 'tuhan']):
+        return "Worship"
+    else:
+        return "Penyembahan" # Kategori default
+
 def update_songs_to_firebase(new_songs):
     try:
         ref = db.reference('songs')
@@ -44,7 +56,6 @@ def update_songs_to_firebase(new_songs):
         sys.exit(1)
 
 def search_archive_org(query, rows=100):
-    """Mencari identifier secara dinamis berdasarkan kata kunci."""
     url = "https://archive.org/advancedsearch.php"
     params = {
         "q": query,
@@ -75,14 +86,16 @@ def fetch_files_from_identifier(identifier):
         for file in files:
             if file.get("name", "").lower().endswith(".mp3"):
                 duration = float(file.get("length", 0))
-                # Filter durasi tetap 5 menit (300 detik)
                 if 0 < duration <= 300:
                     title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
+                    # Menggunakan fungsi kategori baru
+                    category = tentukan_kategori(title)
+                    
                     songs.append({
                         "title": title,
                         "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
                         "duration": duration,
-                        "category": "Worship"
+                        "category": category
                     })
         return songs
     except Exception as e:
@@ -91,7 +104,6 @@ def fetch_files_from_identifier(identifier):
 if __name__ == "__main__":
     print("Memulai pencarian lagu rohani secara dinamis...")
     
-    # Query yang lebih kuat mencakup variasi kata kunci
     queries = [
         'title:("lagu rohani" OR "lagu rohani kristen") AND mediatype:audio',
         'subject:("lagu rohani" OR "kristen" OR "pujian") AND mediatype:audio'
