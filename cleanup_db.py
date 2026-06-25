@@ -1,37 +1,30 @@
 import firebase_admin
 import json
 import os
-import re
 from firebase_admin import credentials, db
 
 # Inisialisasi Firebase
 service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
 
-if service_account_json:
-    try:
-        service_account_info = json.loads(service_account_json)
-        cred = credentials.Certificate(service_account_info)
-    except Exception as e:
-        print(f"ERROR: {e}")
-        exit(1)
-else:
-    try:
-        cred = credentials.Certificate('firebase-key.json')
-    except:
-        print("ERROR: Kredensial tidak ditemukan.")
-        exit(1)
+if not service_account_json:
+    print("ERROR: FIREBASE_SERVICE_ACCOUNT tidak ditemukan di environment.")
+    exit(1)
 
 try:
+    # Coba memuat JSON
+    service_account_info = json.loads(service_account_json)
+    cred = credentials.Certificate(service_account_info)
+    
     if not firebase_admin._apps:
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://lagu-rohani-b507a-default-rtdb.asia-southeast1.firebasedatabase.app'
         })
+    print("Firebase terinisialisasi dengan sukses.")
 except Exception as e:
-    print(f"Error inisialisasi Firebase: {e}")
+    print(f"ERROR Fatal saat inisialisasi Firebase: {e}")
     exit(1)
 
 def clean_database():
-    """Fungsi utama untuk menarik data, membersihkan (menghapus Bigman Sirait), dan mengunggah kembali."""
     print("Mengambil data lagu dari Firebase...")
     ref = db.reference('songs')
     songs = ref.get()
@@ -40,39 +33,35 @@ def clean_database():
         print("Database kosong.")
         return
 
-    updated_songs = []
+    # Jika database berupa list, kita ubah jadi list baru
+    if isinstance(songs, dict):
+        updated_songs = [s for s in songs.values() if s]
+    else:
+        updated_songs = [s for s in songs if s]
+
+    original_count = len(updated_songs)
+    
+    # Filter Bigman Sirait
+    cleaned_songs = []
     deleted_count = 0
     
-    for song in songs:
-        if not song: continue
+    for song in updated_songs:
+        artist = str(song.get('artist', '')).lower()
+        title = str(song.get('title', '')).lower()
         
-        artist = song.get('artist', '') or ""
-        title = song.get('title', '') or ""
-        
-        # LOGIKA PENGHAPUSAN: Hapus jika artis adalah Bigman Sirait
-        if "bigman sirait" in artist.lower():
-            print(f"Menghapus lagu (Kategori tidak sesuai): {title} oleh {artist}")
+        if "bigman sirait" in artist or "bigman sirait" in title:
+            print(f"Menghapus: {title} oleh {artist}")
             deleted_count += 1
-            continue # Lewati/Hapus
+            continue
         
-        updated_songs.append(song)
+        cleaned_songs.append(song)
         
     if deleted_count > 0:
-        print(f"\nMenghapus {deleted_count} lagu. Menyimpan perubahan ke database...")
-        ref.set(updated_songs)
-        print("Selesai! Database Anda sekarang sudah bersih.")
+        print(f"\nMenghapus {deleted_count} lagu. Menyimpan {len(cleaned_songs)} lagu tersisa...")
+        ref.set(cleaned_songs)
+        print("Selesai! Database bersih.")
     else:
-        print("\nTidak ada lagu Bigman Sirait ditemukan. Data aman.")
+        print("\nTidak ada konten Bigman Sirait ditemukan. Data aman.")
 
 if __name__ == "__main__":
-    print("Memulai Skrip Pembersih Database...")
     clean_database()
-```
-
-### Langkah Selanjutnya:
-1. **Update File:** Buka repositori GitHub Anda, buka file `cleanup_db.py`, klik ikon pensil (Edit), hapus kode lama, dan paste kode di atas. Klik **Commit changes**.
-2. **Jalankan Workflow:**
-   * Pergi ke tab **Actions**.
-   * Klik **"Pembersihan Database Manual"**.
-   * Klik **"Run workflow"**.
-3. **Hasil:** Setelah *workflow* selesai dengan tanda centang hijau, semua lagu "Bigman Sirait" akan hilang dari database Firebase Anda dan tidak akan muncul lagi di website.
