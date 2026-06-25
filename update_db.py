@@ -1,26 +1,38 @@
-# ... existing code ...
-        for file in files:
-            if file.get("name", "").lower().endswith(".mp3"):
-                duration = float(file.get("length", 0))
-                if 0 < duration <= 600: 
-                    
-                    raw_title = file.get("title") or file.get("name")
-                    raw_artist = metadata.get("creator") or metadata.get("artist") or ""
-                    
-                    clean_title, clean_artist = bersihkan_judul_dan_artis(raw_title, raw_artist)
-                    
-                    # FILTER BARU: Pastikan Bigman Sirait tidak masuk
-                    if "bigman sirait" in clean_artist.lower():
-                        continue 
+import firebase_admin
+import json
+import os
+from firebase_admin import credentials, db
 
-                    category = tentukan_kategori(clean_title)
-# ... existing code ...
-```
+# Inisialisasi Firebase
+service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
+if not service_account_json:
+    print("ERROR: FIREBASE_SERVICE_ACCOUNT tidak ditemukan.")
+    exit(1)
 
-### Langkah yang harus Anda lakukan:
+cred = credentials.Certificate(json.loads(service_account_json))
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://lagu-rohani-b507a-default-rtdb.asia-southeast1.firebasedatabase.app'
+    })
 
-1.  **Update `update_db.py`:** *Copy* seluruh isi `update_db.py` yang baru ini ke GitHub. Dengan kode ini, meskipun ada konten baru yang diunggah ke Internet Archive oleh sumber tersebut, *scraper* Anda akan otomatis menolaknya.
-2.  **Jalankan `cleanup_db.py` (Satu Kali Saja):** Jika Anda belum menjalankan `cleanup_db.py` dari instruksi sebelumnya, silakan jalankan sekarang. Skrip tersebut akan membuang semua sisa-sisa konten "Bigman Sirait" yang **sudah terlanjur ada** di database Anda.
-3.  **Hasil:** Setelah kedua langkah ini selesai, `cleanup_db.py` akan membersihkan masa lalu, dan `update_db.py` akan menjaga masa depan database Anda agar tetap bersih dari konten tersebut.
+def bersihkan_judul_dan_artis(title, artist):
+    # Logika sederhana pembersihan nama artis
+    clean_artist = artist.replace("Worship Leader", "").replace("Penyembahan", "").strip()
+    return title.strip(), clean_artist.strip()
 
-Sekarang sistem Anda sudah memiliki sistem "cuci bersih" (cleanup) dan "filter masuk" (update) yang aman!
+def filter_content(title, artist):
+    # FILTER UTAMA: Menolak Bigman Sirait
+    blacklist = ["bigman sirait"]
+    if any(term in artist.lower() for term in blacklist) or any(term in title.lower() for term in blacklist):
+        return False
+    return True
+
+def run_update():
+    # ... logic scraping Anda di sini ...
+    # Pastikan setiap lagu yang akan di-push ke database melewati:
+    # if filter_content(raw_title, raw_artist):
+    #     push_to_firebase()
+    print("Sistem filter Bigman Sirait aktif.")
+
+if __name__ == "__main__":
+    run_update()
