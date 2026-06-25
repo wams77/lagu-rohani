@@ -5,20 +5,26 @@ import re
 from firebase_admin import credentials, db
 
 # Inisialisasi Firebase
-# Anda bisa menggunakan environment variable seperti sebelumnya, 
-# atau langsung arahkan ke file JSON credential lokal Anda jika dijalankan di komputer.
-service_account_json = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
 
 if service_account_json:
-    service_account_info = json.loads(service_account_json)
-    cred = credentials.Certificate(service_account_info)
+    try:
+        service_account_info = json.loads(service_account_json)
+        cred = credentials.Certificate(service_account_info)
+    except json.JSONDecodeError as e:
+        print(f"ERROR KRITIS: Format JSON dalam FIREBASE_SERVICE_ACCOUNT tidak valid! Detail: {e}")
+        exit(1)
+    except Exception as e:
+        print(f"ERROR: Masalah saat membaca JSON kredensial: {e}")
+        exit(1)
 else:
-    # Jika dijalankan lokal di PC, pastikan file JSON ada di folder yang sama
-    # Ganti 'firebase-key.json' dengan nama file kunci asli Anda jika ada.
+    print("PERINGATAN: Variabel FIREBASE_SERVICE_ACCOUNT tidak ditemukan di Environment GitHub.")
+    print("Mencoba mencari file lokal 'firebase-key.json'...")
     try:
         cred = credentials.Certificate('firebase-key.json')
-    except:
-        print("Error: Tidak menemukan FIREBASE_SERVICE_ACCOUNT atau file firebase-key.json")
+    except Exception as e:
+        print(f"ERROR: Tidak menemukan file lokal firebase-key.json. Detail: {e}")
+        print("Harap pastikan GitHub Secret FIREBASE_SERVICE_ACCOUNT sudah dibuat dan berisi format JSON yang benar.")
         exit(1)
 
 try:
