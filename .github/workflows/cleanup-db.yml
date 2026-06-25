@@ -1,33 +1,33 @@
 name: Pembersihan Database Manual
 
 on:
-workflow_dispatch:
+  workflow_dispatch: 
 
 jobs:
-cleanup-data:
-runs-on: ubuntu-latest
-steps:
-- name: Checkout code
-uses: actions/checkout@v3
+  cleanup-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  - name: Setup Python
-    uses: actions/setup-python@v4
-    with:
-      python-version: '3.9'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-  - name: Install Dependencies
-    run: pip install firebase-admin requests
+      - name: Install Dependencies
+        run: pip install firebase-admin requests
 
-  - name: Cek Status Secret
-    run: |
-      if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
-        echo "::error::FIREBASE_SERVICE_ACCOUNT Secret KOSONG atau belum di-set di Settings > Secrets > Actions"
-        exit 1
-      else
-        echo "Status Secret: TERDETEKSI"
-      fi
+      - name: Cek Status Secret
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT Secret KOSONG atau belum di-set di Settings > Secrets > Actions"
+            exit 1
+          else
+            echo "Status Secret: TERDETEKSI"
+          fi
 
-  - name: Jalankan Script Pembersih
-    env:
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-    run: python cleanup_db.py
+      - name: Jalankan Script Pembersih
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python cleanup_db.py
