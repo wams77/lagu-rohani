@@ -24,10 +24,7 @@ except Exception as e:
 def update_songs_to_firebase(new_songs):
     try:
         ref = db.reference('songs')
-        # Mengambil data lama terlebih dahulu agar tidak terhapus
         existing_songs = ref.get() or []
-        
-        # Membuat set URL untuk menghindari duplikasi lagu
         existing_urls = {song.get('url') for song in existing_songs if isinstance(song, dict)}
         
         updated_list = list(existing_songs)
@@ -35,22 +32,40 @@ def update_songs_to_firebase(new_songs):
         
         for song in new_songs:
             if song.get('url') not in existing_urls:
-                # Memberikan ID baru berdasarkan panjang list
                 song["id"] = len(updated_list) + 1
                 updated_list.append(song)
                 existing_urls.add(song.get('url'))
                 added_count += 1
         
         ref.set(updated_list)
-        print(f"Selesai! Menambahkan {added_count} lagu baru. Total lagu saat ini: {len(updated_list)}")
+        print(f"Selesai! Menambahkan {added_count} lagu baru. Total lagu: {len(updated_list)}")
     except Exception as e:
         print(f"Gagal mengunggah ke Firebase: {e}")
         sys.exit(1)
 
+def search_archive_org(query, rows=100):
+    """Mencari identifier secara dinamis berdasarkan kata kunci."""
+    url = "https://archive.org/advancedsearch.php"
+    params = {
+        "q": query,
+        "fl[]": "identifier",
+        "rows": rows,
+        "page": 1,
+        "output": "json"
+    }
+    try:
+        response = requests.get(url, params=params, timeout=20)
+        if response.status_code == 200:
+            docs = response.json().get("response", {}).get("docs", [])
+            return [doc["identifier"] for doc in docs]
+    except Exception as e:
+        print(f"Error saat mencari di Archive.org: {e}")
+    return []
+
 def fetch_files_from_identifier(identifier):
     url = f"https://archive.org/metadata/{identifier}"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=15)
         if response.status_code != 200: return []
         
         data = response.json()
@@ -58,38 +73,43 @@ def fetch_files_from_identifier(identifier):
         songs = []
         
         for file in files:
-            # Memastikan file adalah mp3
             if file.get("name", "").lower().endswith(".mp3"):
                 duration = float(file.get("length", 0))
-                
-                # Aturan: Ambil lagu dengan durasi maksimal 300 detik (5 menit)
+                # Filter durasi tetap 5 menit (300 detik)
                 if 0 < duration <= 300:
                     title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
                     songs.append({
                         "title": title,
                         "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
-                        "size": file.get("size", "0"),
                         "duration": duration,
                         "category": "Worship"
                     })
         return songs
     except Exception as e:
-        print(f"Gagal mengambil file dari {identifier}: {e}")
         return []
 
 if __name__ == "__main__":
-    print("Memulai proses pengambilan lagu...")
+    print("Memulai pencarian lagu rohani secara dinamis...")
     
-    # Koleksi spesifik yang Anda minta
-    target_identifiers = ["audio", "lagu-rohani"] 
+    # Query yang lebih kuat mencakup variasi kata kunci
+    queries = [
+        'title:("lagu rohani" OR "lagu rohani kristen") AND mediatype:audio',
+        'subject:("lagu rohani" OR "kristen" OR "pujian") AND mediatype:audio'
+    ]
     
     all_new_songs = []
-    for album_id in target_identifiers:
-        print(f"Memproses koleksi: {album_id}")
-        songs = fetch_files_from_identifier(album_id)
-        all_new_songs.extend(songs)
+    processed_ids = set()
+    
+    for q in queries:
+        ids = search_archive_org(q, rows=50)
+        for album_id in ids:
+            if album_id not in processed_ids:
+                print(f"Mengambil lagu dari koleksi: {album_id}")
+                songs = fetch_files_from_identifier(album_id)
+                all_new_songs.extend(songs)
+                processed_ids.add(album_id)
         
     if all_new_songs:
         update_songs_to_firebase(all_new_songs)
     else:
-        print("Tidak ada lagu baru yang memenuhi kriteria ditemukan.")
+        print("Tidak ada lagu baru ditemukan.")
