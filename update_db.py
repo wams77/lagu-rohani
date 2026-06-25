@@ -88,14 +88,19 @@ def fetch_files_from_identifier(identifier):
                 duration = float(file.get("length", 0))
                 if 0 < duration <= 300:
                     title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
-                    # Menggunakan fungsi kategori baru
                     category = tentukan_kategori(title)
+                    
+                    # Menambahkan metadata untuk kebutuhan SEO
+                    # Google akan membaca ini sebagai deskripsi konten yang relevan
+                    seo_description = f"Download lagu rohani kristen berjudul {title} dalam kategori {category}. Dapatkan kualitas suara terbaik untuk saat teduh dan pujian."
                     
                     songs.append({
                         "title": title,
                         "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
                         "duration": duration,
-                        "category": category
+                        "category": category,
+                        "description": seo_description,
+                        "keywords": "download lagu rohani kristen, lagu pujian, lagu penyembahan"
                     })
         return songs
     except Exception as e:
@@ -120,6 +125,9 @@ if __name__ == "__main__":
                 songs = fetch_files_from_identifier(album_id)
                 all_new_songs.extend(songs)
                 processed_ids.add(album_id)
+        
+        # Tambahan: Memastikan aplikasi memiliki banyak konten untuk SEO
+        if len(all_new_songs) > 500: break
         
     if all_new_songs:
         update_songs_to_firebase(all_new_songs)
