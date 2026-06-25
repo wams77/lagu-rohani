@@ -47,24 +47,6 @@ def update_songs_to_firebase(new_songs):
         print(f"Gagal mengunggah ke Firebase: {e}")
         sys.exit(1)
 
-def get_identifiers_from_search(query, max_items=20):
-    url = "https://archive.org/advancedsearch.php"
-    params = {
-        "q": query,
-        "fl[]": "identifier",
-        "rows": max_items,
-        "page": 1,
-        "output": "json"
-    }
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        if response.status_code == 200:
-            docs = response.json().get("response", {}).get("docs", [])
-            return [doc["identifier"] for doc in docs]
-    except Exception as e:
-        print(f"Gagal mengambil data dari Archive.org: {e}")
-    return []
-
 def fetch_files_from_identifier(identifier):
     url = f"https://archive.org/metadata/{identifier}"
     try:
@@ -81,7 +63,6 @@ def fetch_files_from_identifier(identifier):
                 duration = float(file.get("length", 0))
                 
                 # Aturan: Ambil lagu dengan durasi maksimal 300 detik (5 menit)
-                # Durasi 0 dianggap tidak valid atau data durasi tidak terbaca
                 if 0 < duration <= 300:
                     title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
                     songs.append({
@@ -97,19 +78,14 @@ def fetch_files_from_identifier(identifier):
         return []
 
 if __name__ == "__main__":
-    print("Memulai proses pencarian...")
-    # Menggunakan query yang luas
-    search_query = 'title:"lagu rohani" OR subject:"lagu rohani"'
-    # max_items tetap 20 untuk membatasi jumlah album yang dibuka agar tidak timeout
-    album_ids = get_identifiers_from_search(search_query, max_items=20)
+    print("Memulai proses pengambilan lagu...")
     
-    if not album_ids:
-        print("Tidak ada album ditemukan.")
-        sys.exit(0)
+    # Koleksi spesifik yang Anda minta
+    target_identifiers = ["audio", "lagu-rohani"] 
     
     all_new_songs = []
-    for album_id in album_ids:
-        print(f"Memproses album: {album_id}")
+    for album_id in target_identifiers:
+        print(f"Memproses koleksi: {album_id}")
         songs = fetch_files_from_identifier(album_id)
         all_new_songs.extend(songs)
         
