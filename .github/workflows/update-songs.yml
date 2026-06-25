@@ -1,0 +1,26 @@
+name: Update Lagu Rohani
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Menjalankan setiap hari jam 00:00 UTC
+  workflow_dispatch: # Bisa dijalankan manual dari tab 'Actions' di GitHub
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install firebase-admin
+
+      - name: Run Script
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python update_db.py
