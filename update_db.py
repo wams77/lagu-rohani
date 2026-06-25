@@ -31,7 +31,20 @@ def tentukan_kategori(title):
     elif any(word in title_lower for word in ['worship', 'faith', 'yesus', 'tuhan']):
         return "Worship"
     else:
-        return "Penyembahan" # Kategori default
+        return "Penyembahan"
+
+def ekstrak_artis(metadata, title):
+    """Mencoba mengekstrak nama artis dari metadata atau judul lagu."""
+    # Prioritaskan metadata creator atau artist dari Archive.org
+    artis = metadata.get("creator") or metadata.get("artist")
+    if artis:
+        return artis
+    
+    # Jika tidak ada, coba ambil dari judul (asumsi format "Nama Artis - Judul Lagu")
+    if " - " in title:
+        return title.split(" - ")[0].strip()
+    
+    return "Worship Leader" # Nama default jika tidak ditemukan
 
 def update_songs_to_firebase(new_songs):
     try:
@@ -80,6 +93,7 @@ def fetch_files_from_identifier(identifier):
         if response.status_code != 200: return []
         
         data = response.json()
+        metadata = data.get("metadata", {})
         files = data.get("files", [])
         songs = []
         
@@ -89,18 +103,18 @@ def fetch_files_from_identifier(identifier):
                 if 0 < duration <= 300:
                     title = file.get("title", file.get("name").replace(".mp3", "").replace("_", " "))
                     category = tentukan_kategori(title)
+                    artis = ekstrak_artis(metadata, title)
                     
-                    # Menambahkan metadata untuk kebutuhan SEO
-                    # Google akan membaca ini sebagai deskripsi konten yang relevan
-                    seo_description = f"Download lagu rohani kristen berjudul {title} dalam kategori {category}. Dapatkan kualitas suara terbaik untuk saat teduh dan pujian."
+                    seo_description = f"Download lagu rohani kristen berjudul {title} oleh {artis} dalam kategori {category}. Dapatkan kualitas suara terbaik untuk saat teduh dan pujian."
                     
                     songs.append({
                         "title": title,
+                        "artist": artis,
                         "url": f"https://archive.org/download/{identifier}/{file.get('name')}",
                         "duration": duration,
                         "category": category,
                         "description": seo_description,
-                        "keywords": "download lagu rohani kristen, lagu pujian, lagu penyembahan"
+                        "keywords": f"download lagu rohani kristen, lagu {artis}, lagu pujian, lagu penyembahan"
                     })
         return songs
     except Exception as e:
@@ -126,7 +140,6 @@ if __name__ == "__main__":
                 all_new_songs.extend(songs)
                 processed_ids.add(album_id)
         
-        # Tambahan: Memastikan aplikasi memiliki banyak konten untuk SEO
         if len(all_new_songs) > 500: break
         
     if all_new_songs:
